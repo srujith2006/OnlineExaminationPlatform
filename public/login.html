@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login - DigiPariksha</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <style>
+      body.page-login #authCard {
+        max-width: 760px;
+        margin: 22px auto 0;
+      }
+      body.page-login .topbar {
+        justify-content: center;
+      }
+    </style>
+  </head>
+  <body class="page-login" data-page="login">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="sparkle-layer"></div>
+
+    <header class="topbar">
+      <div class="brand-wrap">
+        <h1>DigiPariksha</h1>
+        <p class="brand-subtitle">Smart Online Examination Portal</p>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section id="authCard" class="card">
+        <h2 id="authTitle" class="auth-title">Welcome Back <span class="wave">Hi</span></h2>
+        <form id="loginForm" class="stack">
+          <label class="field-icon email">
+            <input id="loginEmail" type="email" placeholder="Email Address" required />
+          </label>
+          <label class="field-icon password">
+            <input id="loginPassword" type="password" placeholder="Password" required />
+          </label>
+          <button class="btn primary" type="submit">Login</button>
+          <p class="auth-switch">
+            Don't have an account?
+            <button id="showRegisterLink" type="button" class="link-btn">Register</button>
+          </p>
+          <p class="auth-switch">
+            Want to update your password?
+            <button id="showChangePasswordLink" type="button" class="link-btn">Change Password</button>
+          </p>
+        </form>
+        <form id="registerForm" class="stack hidden">
+          <label class="field-icon name">
+            <input id="regName" type="text" placeholder="Name" required />
+          </label>
+          <label class="field-icon email">
+            <input id="regEmail" type="email" placeholder="Email" required />
+          </label>
+          <label class="field-icon password">
+            <input id="regPassword" type="password" placeholder="Password" required />
+          </label>
+          <select id="regRole">
+            <option value="student">Student</option>
+            <option value="teacher">Teacher</option>
+          </select>
+          <button class="btn primary" type="submit">Create Account</button>
+          <p class="auth-switch">
+            Already have an account?
+            <button id="showLoginLink" type="button" class="link-btn">Login</button>
+          </p>
+        </form>
+        <form id="changePasswordForm" class="stack hidden">
+          <label class="field-icon email">
+            <input id="cpEmail" type="email" placeholder="Email" required />
+          </label>
+          <label class="field-icon password">
+            <input id="cpCurrentPassword" type="password" placeholder="Current Password" required />
+          </label>
+          <label class="field-icon password">
+            <input id="cpNewPassword" type="password" placeholder="New Password" required />
+          </label>
+          <label class="field-icon password">
+            <input id="cpConfirmPassword" type="password" placeholder="Confirm New Password" required />
+          </label>
+          <button class="btn primary" type="submit">Change Password</button>
+          <p class="auth-switch">
+            Remembered your password?
+            <button id="showLoginFromChangeLink" type="button" class="link-btn">Login</button>
+          </p>
+        </form>
+      </section>
+    </main>
+
+    <div id="toast" class="toast hidden"></div>
+    <script src="/api.js"></script>
+    <script src="/ui.js"></script>
+    <script src="/auth.js"></script>
+    <script src="/login.js"></script>
+  </body>
+</html>

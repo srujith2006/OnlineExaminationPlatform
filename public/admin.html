@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Teacher - DigiPariksha</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <style>
+      body.page-admin .card {
+        border-color: #80aef3;
+      }
+      body.page-admin .module-link.active {
+        background: linear-gradient(180deg, #224fb4, #132f78);
+      }
+    </style>
+  </head>
+  <body class="page-admin" data-page="admin">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="sparkle-layer"></div>
+
+    <header class="topbar">
+      <div class="brand-wrap">
+        <h1>DigiPariksha</h1>
+        <p class="brand-subtitle">Teacher Dashboard</p>
+      </div>
+      <div class="topbar-actions">
+        <span id="userBadge" class="badge hidden"></span>
+        <button id="logoutBtn" class="btn ghost hidden">Logout</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section id="adminPanel" class="card">
+        <h2>Teacher Dashboard</h2>
+        <div class="module-shell">
+          <aside class="module-sidebar">
+            <button class="module-link active" data-module="admin-create-exam" type="button">Create Exam</button>
+            <button class="module-link" data-module="admin-create-question" type="button">Create Question</button>
+            <button class="module-link" data-module="admin-materials" type="button">Materials</button>
+            <button class="module-link" data-module="admin-results" type="button">Student Results</button>
+          </aside>
+          <div class="module-content">
+            <div class="panel module-panel active" data-module="admin-create-exam">
+              <form id="createExamForm" class="stack">
+                <h3>Create Exam</h3>
+                <input id="examTitle" placeholder="Title" required />
+                <input id="examDescription" placeholder="Description" />
+                <input id="examDuration" type="number" placeholder="Duration (mins)" required />
+                <button class="btn primary" type="submit">Create Exam</button>
+              </form>
+            </div>
+
+            <div class="panel module-panel" data-module="admin-create-question">
+              <form id="createQuestionForm" class="stack">
+                <h3>Create Question</h3>
+                <input id="questionExamId" placeholder="Exam ID" required />
+                <textarea id="questionText" placeholder="Question" required></textarea>
+                <textarea id="questionOptions" placeholder="Options (one per line)" required></textarea>
+                <input id="questionCorrectIndex" type="number" placeholder="Correct Option Index (0-based)" required />
+                <button class="btn primary" type="submit">Add Question</button>
+              </form>
+            </div>
+
+            <div class="panel module-panel" data-module="admin-materials">
+              <h3>Study Materials</h3>
+              <form id="createMaterialLinkForm" class="stack">
+                <input id="materialTitle" placeholder="Material Title" required />
+                <input id="materialDescription" placeholder="Description" />
+                <input id="materialExamId" placeholder="Exam ID (optional)" />
+                <input id="materialTopic" placeholder="Topic (optional)" />
+                <select id="materialType">
+                  <option value="link">Link</option>
+                  <option value="video">Video</option>
+                </select>
+                <input id="materialUrl" placeholder="https://..." required />
+                <button class="btn primary" type="submit">Add Link Material</button>
+              </form>
+              <form id="uploadMaterialForm" class="stack">
+                <input id="uploadMaterialTitle" placeholder="File Title" required />
+                <input id="uploadMaterialDescription" placeholder="Description" />
+                <input id="uploadMaterialExamId" placeholder="Exam ID (optional)" />
+                <input id="uploadMaterialTopic" placeholder="Topic (optional)" />
+                <input id="uploadMaterialFile" type="file" required />
+                <button class="btn primary" type="submit">Upload File Material</button>
+              </form>
+              <button id="loadAdminMaterialsBtn" class="btn">Refresh Materials</button>
+              <div id="adminMaterialsList" class="list"></div>
+            </div>
+
+            <div class="panel module-panel" data-module="admin-results">
+              <h3>Student Results</h3>
+              <button id="loadAllResultsBtn" class="btn">Load Students</button>
+              <div id="allResultsList" class="list"></div>
+              <h4 id="adminSelectedStudentTitle">Select a student to view results</h4>
+              <div id="adminStudentResultsList" class="list"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div id="toast" class="toast hidden"></div>
+    <script src="/api.js"></script>
+    <script src="/ui.js"></script>
+    <script src="/auth.js"></script>
+    <script src="/admin.js"></script>
+  </body>
+</html>

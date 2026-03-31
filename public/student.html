@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Student - DigiPariksha</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <style>
+      body.page-student .card {
+        border-color: #78d0b1;
+      }
+      body.page-student .module-link.active {
+        background: linear-gradient(180deg, #1e8f65, #146246);
+      }
+    </style>
+  </head>
+  <body class="page-student" data-page="student">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="sparkle-layer"></div>
+
+    <header class="topbar">
+      <div class="brand-wrap">
+        <h1>DigiPariksha</h1>
+        <p class="brand-subtitle">Student Dashboard</p>
+      </div>
+      <div class="topbar-actions">
+        <span id="userBadge" class="badge hidden"></span>
+        <button id="logoutBtn" class="btn ghost hidden">Logout</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section id="studentPanel" class="card">
+        <h2 id="studentHeading">Student Dashboard</h2>
+        <div class="module-shell">
+          <aside class="module-sidebar">
+            <button class="module-link active" data-module="student-exams" type="button">Available Exams</button>
+            <button class="module-link" data-module="student-write-exam" type="button">Write Exam</button>
+            <button class="module-link" data-module="student-materials" type="button">Study Materials</button>
+            <button class="module-link" data-module="student-results" type="button">My Results</button>
+          </aside>
+          <div class="module-content">
+            <div class="panel module-panel active" data-module="student-exams">
+              <h3>Available Exams</h3>
+              <button id="loadExamsBtn" class="btn">Refresh Exams</button>
+              <div id="examList" class="list"></div>
+            </div>
+
+            <div class="panel module-panel" data-module="student-write-exam">
+              <h3>Write Exam</h3>
+              <form id="startExamForm" class="row">
+                <input id="startExamId" placeholder="Enter Exam ID" required />
+                <button class="btn primary" type="submit">Load Questions</button>
+              </form>
+              <div id="examTimer" class="exam-timer hidden"></div>
+              <form id="examSubmitForm" class="stack hidden"></form>
+              <div id="examFeedback" class="feedback hidden"></div>
+            </div>
+
+            <div class="panel module-panel" data-module="student-materials">
+              <h3>Study Materials</h3>
+              <button id="loadStudentMaterialsBtn" class="btn">Load Materials</button>
+              <div id="studentMaterialsList" class="list"></div>
+            </div>
+
+            <div class="panel module-panel" data-module="student-results">
+              <h3>My Results</h3>
+              <button id="loadMyResultsBtn" class="btn">Load My Results</button>
+              <div id="myResultsList" class="list"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div id="toast" class="toast hidden"></div>
+    <script src="/api.js"></script>
+    <script src="/ui.js"></script>
+    <script src="/auth.js"></script>
+    <script src="/student.js"></script>
+  </body>
+</html>
