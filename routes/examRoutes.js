@@ -31,7 +31,9 @@ router.post("/", authMiddleware, adminMiddleware, async (req, res) => {
 
 router.get("/", async (req, res) => {
   const section = String(req.query?.section || "").trim();
-  const filter = section ? { section } : {};
+  const filter = section
+    ? { $or: [{ section }, { section: "" }, { section: null }] }
+    : {};
   const exams = await Exam.find(filter);
   res.json(exams);
 });
@@ -58,10 +60,23 @@ router.post("/:id/edit-requests", authMiddleware, adminMiddleware, async (req, r
 
     const requestType = String(req.body?.requestType || "").trim();
     const reason = String(req.body?.reason || "").trim();
+    const requestedDueDateRaw = req.body?.requestedDueDate;
     const allowedTypes = ["due_date", "questions", "both"];
 
     if (!allowedTypes.includes(requestType)) {
       return res.status(400).json({ message: "Invalid request type" });
+    }
+
+    let requestedDueDate = null;
+    if (["due_date", "both"].includes(requestType)) {
+      if (!requestedDueDateRaw) {
+        return res.status(400).json({ message: "requestedDueDate is required for due date changes" });
+      }
+      const parsedDate = new Date(requestedDueDateRaw);
+      if (Number.isNaN(parsedDate.getTime())) {
+        return res.status(400).json({ message: "requestedDueDate must be a valid date" });
+      }
+      requestedDueDate = parsedDate;
     }
 
     const pendingExisting = await ExamEditRequest.findOne({
@@ -78,7 +93,8 @@ router.post("/:id/edit-requests", authMiddleware, adminMiddleware, async (req, r
       examId: exam._id,
       requestedBy: req.user._id,
       requestType,
-      reason
+      reason,
+      requestedDueDate
     });
 
     res.status(201).json(request);
@@ -137,6 +153,16 @@ router.post(
       request.reviewedBy = req.user._id;
       request.reviewedAt = new Date();
       await request.save();
+
+      if (action === "approve" && ["due_date", "both"].includes(request.requestType)) {
+        if (request.requestedDueDate) {
+          const exam = await Exam.findById(request.examId);
+          if (exam) {
+            exam.dueDate = request.requestedDueDate;
+            await exam.save();
+          }
+        }
+      }
 
       await AdminFeedback.create({
         userId: request.requestedBy,

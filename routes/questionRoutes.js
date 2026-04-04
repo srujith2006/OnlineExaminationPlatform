@@ -115,57 +115,132 @@ router.get("/:examId", async (req, res) => {
 
 router.put("/bulk-update", authMiddleware, async (req, res) => {
   try {
-    const { examId, questions } = req.body || {};
-    if (!examId || !Array.isArray(questions) || questions.length === 0) {
+    const {
+      examId,
+      questions = [],
+      newQuestions = [],
+      deletedQuestionIds = [],
+      dueDate
+    } = req.body || {};
+    const hasUpdates = Array.isArray(questions) && questions.length > 0;
+    const hasAdds = Array.isArray(newQuestions) && newQuestions.length > 0;
+    const hasDeletes = Array.isArray(deletedQuestionIds) && deletedQuestionIds.length > 0;
+    if (!examId || (!hasUpdates && !hasAdds && !hasDeletes)) {
       return res.status(400).json({
-        message: "examId and non-empty questions array are required"
+        message: "examId and at least one update, add, or delete action are required"
       });
     }
 
     const allowed = await ensureEditPermission(req, res, examId, "questions");
     if (!allowed) return;
 
-    const exam = await Exam.findById(examId).select("_id totalQuestions");
+    const exam = await Exam.findById(examId).select("_id totalQuestions dueDate");
     if (!exam) {
       return res.status(404).json({ message: "Exam not found" });
     }
 
-    if (questions.length !== exam.totalQuestions) {
+    if ((hasAdds || hasDeletes) && !dueDate) {
       return res.status(400).json({
-        message: `You must submit exactly ${exam.totalQuestions} questions for this exam`
+        message: "Updating the due date is mandatory when adding or deleting questions"
       });
     }
 
-    const bulkOps = questions.map((q, idx) => {
-      const options = Array.isArray(q.options) ? q.options : [];
-      if (!q._id) {
-        throw new Error(`Question ${idx + 1} id is required`);
-      }
-      if (!q.question || !String(q.question).trim()) {
-        throw new Error(`Question ${idx + 1} text is required`);
-      }
-      if (options.length < 2) {
-        throw new Error(`Question ${idx + 1} must have at least 2 options`);
-      }
-      if (!Number.isInteger(Number(q.correctOptionIndex))) {
-        throw new Error(`Question ${idx + 1} correct option index is required`);
-      }
+    if (hasDeletes && deletedQuestionIds.length >= exam.totalQuestions && !hasAdds) {
+      return res.status(400).json({
+        message: "At least one question must remain in the exam"
+      });
+    }
 
-      return {
-        updateOne: {
-          filter: { _id: q._id, examId },
-          update: {
-            $set: {
+    const bulkOps = [];
+
+    if (hasUpdates) {
+      questions.forEach((q, idx) => {
+        const options = Array.isArray(q.options) ? q.options : [];
+        if (!q._id) {
+          throw new Error(`Question ${idx + 1} id is required`);
+        }
+        if (!q.question || !String(q.question).trim()) {
+          throw new Error(`Question ${idx + 1} text is required`);
+        }
+        if (options.length < 2) {
+          throw new Error(`Question ${idx + 1} must have at least 2 options`);
+        }
+        if (!Number.isInteger(Number(q.correctOptionIndex))) {
+          throw new Error(`Question ${idx + 1} correct option index is required`);
+        }
+
+        bulkOps.push({
+          updateOne: {
+            filter: { _id: q._id, examId },
+            update: {
+              $set: {
+                question: String(q.question).trim(),
+                options: options.map((opt) => String(opt).trim()),
+                correctOptionIndex: Number(q.correctOptionIndex)
+              }
+            }
+          }
+        });
+      });
+    }
+
+    if (hasAdds) {
+      newQuestions.forEach((q, idx) => {
+        const options = Array.isArray(q.options) ? q.options : [];
+        if (!q.question || !String(q.question).trim()) {
+          throw new Error(`New question ${idx + 1} text is required`);
+        }
+        if (options.length < 2) {
+          throw new Error(`New question ${idx + 1} must have at least 2 options`);
+        }
+        if (!Number.isInteger(Number(q.correctOptionIndex))) {
+          throw new Error(`New question ${idx + 1} correct option index is required`);
+        }
+
+        bulkOps.push({
+          insertOne: {
+            document: {
+              examId,
               question: String(q.question).trim(),
               options: options.map((opt) => String(opt).trim()),
               correctOptionIndex: Number(q.correctOptionIndex)
             }
           }
-        }
-      };
-    });
+        });
+      });
+    }
 
-    await Question.bulkWrite(bulkOps);
+    if (hasDeletes) {
+      bulkOps.push({
+        deleteMany: {
+          filter: {
+            examId,
+            _id: { $in: deletedQuestionIds }
+          }
+        }
+      });
+    }
+
+    if (bulkOps.length > 0) {
+      await Question.bulkWrite(bulkOps);
+    }
+
+    if (hasAdds || hasDeletes) {
+      const updatedCount = await Question.countDocuments({ examId });
+      if (updatedCount < 1) {
+        return res.status(400).json({
+          message: "At least one question must remain in the exam"
+        });
+      }
+      const nextDueDate = new Date(dueDate);
+      if (Number.isNaN(nextDueDate.getTime())) {
+        return res.status(400).json({ message: "Invalid due date" });
+      }
+      exam.totalQuestions = updatedCount;
+      exam.dueDate = nextDueDate;
+      await exam.save();
+    }
+
     res.json({ message: "Questions updated successfully" });
   } catch (err) {
     res.status(400).json({ message: err.message });

@@ -43,7 +43,7 @@ export default function LoginPage() {
     try {
       const data = await apiRequest("/api/users/login", {
         method: "POST",
-        body: { email: form.email, password: form.password, section: form.section }
+        body: { email: form.email, password: form.password }
       });
       login({ token: data.token, role: data.role, name: data.name, section: data.section });
       navigate(data.role === "student" ? "/student" : "/admin", { replace: true });
@@ -207,13 +207,14 @@ export default function LoginPage() {
                 required
               />
             </label>
-            {(mode === "login" || mode === "register") && (
+            {mode === "register" && form.role === "student" && (
               <label className="field">
                 <span>Section (Students)</span>
                 <input
                   value={form.section}
                   onChange={(e) => setField("section", e.target.value)}
                   placeholder="e.g., A"
+                  required
                 />
               </label>
             )}
@@ -374,17 +375,6 @@ export default function LoginPage() {
                     ? "Change Password"
                     : "Send Forgot Password Request"}
             </button>
-            {mode === "login" && (
-              <div className="divider">
-                <span>Or continue with</span>
-              </div>
-            )}
-            {mode === "login" && (
-              <div className="social-row" aria-hidden="true">
-                <span className="social google">G</span>
-                <span className="social microsoft">M</span>
-              </div>
-            )}
             {mode === "login" && (
               <p className="login-switch">
                 Don&apos;t have an account?{" "}

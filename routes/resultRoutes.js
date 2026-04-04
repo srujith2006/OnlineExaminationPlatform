@@ -33,6 +33,87 @@ function summarizeByExam(results) {
   return Array.from(summaryMap.values());
 }
 
+async function buildSectionRankings(section, examIds = null) {
+  const students = await User.find({ role: "student", section })
+    .select("_id name email section")
+    .lean();
+  const studentIds = students.map((student) => student._id);
+
+  if (studentIds.length === 0) {
+    return { rankings: [] };
+  }
+
+  const resultFilter = { userId: { $in: studentIds } };
+  if (Array.isArray(examIds) && examIds.length > 0) {
+    resultFilter.examId = { $in: examIds };
+  }
+
+  const results = await Result.find(resultFilter)
+    .select("userId examId score totalMarks")
+    .lean();
+
+  const studentMap = new Map();
+  for (const student of students) {
+    studentMap.set(String(student._id), {
+      userId: student._id,
+      name: student.name || "Student",
+      email: student.email || "",
+      section: student.section || section,
+      attemptsCount: 0,
+      examMap: new Map()
+    });
+  }
+
+  for (const result of results) {
+    const userKey = String(result.userId);
+    if (!studentMap.has(userKey)) continue;
+    const entry = studentMap.get(userKey);
+    entry.attemptsCount += 1;
+    const examKey = String(result.examId);
+    const current = entry.examMap.get(examKey) || {
+      score: 0,
+      totalMarks: result.totalMarks || 0
+    };
+    entry.examMap.set(examKey, {
+      score: Math.max(current.score, result.score || 0),
+      totalMarks: Math.max(current.totalMarks, result.totalMarks || 0)
+    });
+  }
+
+  const rankings = Array.from(studentMap.values()).map((entry) => {
+    let totalScore = 0;
+    let totalMarks = 0;
+    entry.examMap.forEach((value) => {
+      totalScore += value.score;
+      totalMarks += value.totalMarks;
+    });
+    const accuracy = totalMarks ? totalScore / totalMarks : 0;
+    return {
+      userId: entry.userId,
+      name: entry.name,
+      email: entry.email,
+      section: entry.section,
+      attemptsCount: entry.attemptsCount,
+      examsCount: entry.examMap.size,
+      totalScore,
+      totalMarks,
+      accuracy
+    };
+  });
+
+  rankings.sort((a, b) => {
+    if (b.accuracy !== a.accuracy) return b.accuracy - a.accuracy;
+    if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
+    return a.name.localeCompare(b.name);
+  });
+
+  rankings.forEach((entry, index) => {
+    entry.rank = index + 1;
+  });
+
+  return { rankings };
+}
+
 router.post("/", authMiddleware, async (req, res) => {
   try {
     const result = new Result({ ...req.body, userId: req.user._id });
@@ -154,6 +235,42 @@ router.get("/", authMiddleware, async (req, res) => {
   res.json(summarizeByExam(results));
 });
 
+router.get("/rankings", authMiddleware, async (req, res) => {
+  try {
+    const section = String(req.user.section || "").trim();
+    if (!section) {
+      return res.json({ section: "", student: null, rankings: [] });
+    }
+    const { rankings } = await buildSectionRankings(section);
+    const student = rankings.find(
+      (entry) => String(entry.userId) === String(req.user._id)
+    );
+    res.json({ section, student: student || null, rankings });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.get("/rankings/section", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const section = String(req.query?.section || "").trim();
+    if (!section) {
+      return res.status(400).json({ message: "section is required" });
+    }
+
+    let examIds = null;
+    if (req.user.role === "teacher") {
+      const exams = await Exam.find({ createdBy: req.user._id }).select("_id");
+      examIds = exams.map((exam) => exam._id);
+    }
+
+    const { rankings } = await buildSectionRankings(section, examIds);
+    res.json({ section, rankings });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 router.get("/students", authMiddleware, adminMiddleware, async (req, res) => {
   const section = String(req.query?.section || "").trim();
   const filter = {};
@@ -230,9 +347,13 @@ router.get("/all", authMiddleware, adminMiddleware, async (req, res) => {
 
 router.post("/retest-requests", authMiddleware, async (req, res) => {
   try {
-    const { examId } = req.body;
+    const { examId, reason } = req.body;
     if (!examId) {
       return res.status(400).json({ message: "examId is required" });
+    }
+    const cleanReason = String(reason || "").trim();
+    if (cleanReason.length < 3) {
+      return res.status(400).json({ message: "Reason is required (min 3 characters)" });
     }
 
     const exam = await Exam.findById(examId).select("_id dueDate");
@@ -260,6 +381,7 @@ router.post("/retest-requests", authMiddleware, async (req, res) => {
         $set: {
           status: "pending",
           used: false,
+          reason: cleanReason,
           requestedAt: new Date(),
           resolvedAt: null,
           note: "",
@@ -321,6 +443,7 @@ router.get(
           email: r.userId?.email || "",
           examId: r.examId?._id || null,
           examTitle: r.examId?.title || "Exam",
+          reason: r.reason || "",
           requestedAt: r.requestedAt
         }))
       );

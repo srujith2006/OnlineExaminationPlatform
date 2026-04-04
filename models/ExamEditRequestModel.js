@@ -17,6 +17,10 @@ const examEditRequestSchema = new mongoose.Schema(
       enum: ["due_date", "questions", "both"],
       required: true
     },
+    requestedDueDate: {
+      type: Date,
+      default: null
+    },
     reason: {
       type: String,
       default: ""

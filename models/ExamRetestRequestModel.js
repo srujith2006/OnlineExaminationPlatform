@@ -17,6 +17,7 @@ const examRetestRequestSchema = new mongoose.Schema(
       enum: ["pending", "approved", "rejected"],
       default: "pending"
     },
+    reason: { type: String, default: "" },
     used: { type: Boolean, default: false },
     requestedAt: { type: Date, default: Date.now },
     resolvedAt: { type: Date, default: null },

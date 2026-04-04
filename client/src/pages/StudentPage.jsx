@@ -22,8 +22,10 @@ export default function StudentPage() {
   const [feedback, setFeedback] = useState(null);
   const [remainingSeconds, setRemainingSeconds] = useState(null);
   const [retestItems, setRetestItems] = useState([]);
+  const [retestReasons, setRetestReasons] = useState({});
   const [approvedRetestExamIds, setApprovedRetestExamIds] = useState([]);
   const [adminFeedbackItems, setAdminFeedbackItems] = useState([]);
+  const [rankings, setRankings] = useState({ section: "", student: null, rankings: [] });
   const { toast, show } = useToast();
   const submittingRef = useRef(false);
   const autoSubmitTriggeredRef = useRef(false);
@@ -45,15 +47,21 @@ export default function StudentPage() {
     return map;
   }, [retestItems]);
 
+  const dueExams = useMemo(() => {
+    const now = new Date();
+    return exams.filter((exam) => exam.dueDate && new Date(exam.dueDate) < now);
+  }, [exams]);
+
+  const availableExams = useMemo(() => {
+    const now = new Date();
+    return exams.filter((exam) => !exam.dueDate || new Date(exam.dueDate) >= now);
+  }, [exams]);
+
   const loadExams = async () => {
     try {
       const query = section ? `?section=${encodeURIComponent(section)}` : "";
       const data = await apiRequest(`/api/exams${query}`, { token });
-      const now = new Date();
-      const available = (data || []).filter(
-        (exam) => !exam.dueDate || new Date(exam.dueDate) >= now
-      );
-      setExams(available);
+      setExams(data || []);
     } catch (err) {
       show(err.message, true);
     }
@@ -75,6 +83,15 @@ export default function StudentPage() {
     }
   };
 
+  const loadRankings = async () => {
+    try {
+      const data = await apiRequest("/api/results/rankings", { token });
+      setRankings(data || { section: "", student: null, rankings: [] });
+    } catch (err) {
+      show(err.message, true);
+    }
+  };
+
   const loadRetestStatus = async () => {
     try {
       const data = await apiRequest("/api/results/retest-status", { token });
@@ -87,12 +104,18 @@ export default function StudentPage() {
 
   const requestRetest = async (id) => {
     try {
+      const reason = String(retestReasons[id] || "").trim();
+      if (reason.length < 3) {
+        show("Reason is required (min 3 characters)", true);
+        return;
+      }
       const data = await apiRequest("/api/results/retest-requests", {
         method: "POST",
         token,
-        body: { examId: id }
+        body: { examId: id, reason }
       });
       show(data.message || "Retest request sent to admin");
+      setRetestReasons((prev) => ({ ...prev, [id]: "" }));
       await loadRetestStatus();
     } catch (err) {
       show(err.message, true);
@@ -191,6 +214,7 @@ export default function StudentPage() {
     loadResults();
     loadRetestStatus();
     loadAdminFeedback();
+    loadRankings();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -219,10 +243,29 @@ export default function StudentPage() {
     return `${mins}:${secs}`;
   };
 
+  const accuracySummary = useMemo(() => {
+    const totalScore = results.reduce((sum, item) => sum + (item.bestScore || 0), 0);
+    const totalMarks = results.reduce((sum, item) => sum + (item.totalMarks || 0), 0);
+    return {
+      totalScore,
+      totalMarks,
+      accuracy: totalMarks ? totalScore / totalMarks : 0
+    };
+  }, [results]);
+
+  const performanceSeries = useMemo(
+    () =>
+      results.map((item, idx) => ({
+        label: item.examId?.title || `Exam ${idx + 1}`,
+        value: item.totalMarks ? item.bestScore / item.totalMarks : 0
+      })),
+    [results]
+  );
+
   return (
     <>
       <Shell
-        title={`${name || "Student"} Dashboard`}
+        title={`${name || "Student"} Dashboard | Rank: ${rankings.student ? `#${rankings.student.rank}` : "N/A"} | Section: ${rankings.section || section || "N/A"}`}
         subtitle="Student Dashboard"
         onBellClick={async () => {
           setActive("admin-feedback");
@@ -238,6 +281,7 @@ export default function StudentPage() {
             <button className={`module-link ${active === "materials" ? "active" : ""}`} onClick={() => setActive("materials")}>Study Materials</button>
             <button className={`module-link ${active === "results" ? "active" : ""}`} onClick={() => setActive("results")}>My Results</button>
             <button className={`module-link ${active === "retest" ? "active" : ""}`} onClick={() => setActive("retest")}>Retest Requests</button>
+            <button className={`module-link ${active === "rank" ? "active" : ""}`} onClick={() => setActive("rank")}>Rank Board</button>
           </aside>
           <div className="module-content">
             {active === "exams" && (
@@ -245,7 +289,7 @@ export default function StudentPage() {
                 <h3>Available Exams</h3>
                 <button className="btn" onClick={loadExams}>Refresh Exams</button>
                 <div className="list">
-                  {exams.map((exam) => (
+                  {availableExams.map((exam) => (
                     <div className="item" key={exam._id}>
                       <strong>{exam.title}</strong>
                       <br />
@@ -386,6 +430,25 @@ export default function StudentPage() {
               <div className="panel">
                 <h3>My Results</h3>
                 <button className="btn" onClick={loadResults}>Load My Results</button>
+                <div className="chart-grid">
+                  <div className="chart-card">
+                    <h4>Accuracy</h4>
+                    <PieChart value={accuracySummary.accuracy} />
+                    <div className="chart-meta">
+                      <div>Correct: {accuracySummary.totalScore}</div>
+                      <div>Total: {accuracySummary.totalMarks}</div>
+                      <div>Accuracy: {Math.round(accuracySummary.accuracy * 100)}%</div>
+                    </div>
+                  </div>
+                  <div className="chart-card">
+                    <h4>Performance Trend</h4>
+                    {performanceSeries.length ? (
+                      <LineChart data={performanceSeries} />
+                    ) : (
+                      <div className="muted">No results yet. Take an exam to see your trend.</div>
+                    )}
+                  </div>
+                </div>
                 <div className="list">
                   {results.map((r, idx) => (
                     <div className="item" key={`${r.examId?._id || r.examId}-${idx}`}>
@@ -403,10 +466,66 @@ export default function StudentPage() {
               </div>
             )}
 
+            {active === "rank" && (
+              <div className="panel">
+                <h3>Rank Board</h3>
+                <button className="btn" onClick={loadRankings}>Load Rank Board</button>
+                <div className="rank-grid">
+                  <div className="rank-card">
+                    <h4>Your Rank</h4>
+                    {rankings.student ? (
+                      <>
+                        <div className="rank-hero">#{rankings.student.rank}</div>
+                        <div className="rank-meta">
+                          <div>Section: {rankings.section || section || "N/A"}</div>
+                          <div>
+                            Accuracy: {Math.round((rankings.student.accuracy || 0) * 100)}%
+                          </div>
+                          <div>
+                            Score: {rankings.student.totalScore}/{rankings.student.totalMarks}
+                          </div>
+                          <div>Exams Considered: {rankings.student.examsCount}</div>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="muted">No rank yet. Complete an exam to appear on the board.</div>
+                    )}
+                  </div>
+                  <div className="rank-card">
+                    <h4>Class Rankings</h4>
+                    <div className="rank-list">
+                      {rankings.rankings.length === 0 ? (
+                        <div className="item">No rankings available for this section.</div>
+                      ) : (
+                        rankings.rankings.map((entry) => (
+                          <div
+                            className={`rank-item ${entry.name === name ? "me" : ""}`}
+                            key={entry.userId}
+                          >
+                            <div className="rank-pill">#{entry.rank}</div>
+                            <div className="rank-name">
+                              {entry.name}
+                              <span>{entry.email}</span>
+                            </div>
+                            <div className="rank-score">
+                              {Math.round((entry.accuracy || 0) * 100)}%
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {active === "retest" && (
               <div className="panel">
                 <h3>Retest Requests</h3>
-                <button className="btn" onClick={loadRetestStatus}>Check Admin Response</button>
+                <div className="material-actions">
+                  <button className="btn" onClick={loadRetestStatus}>Check Admin Response</button>
+                  <button className="btn" onClick={loadExams}>Load Due Exams</button>
+                </div>
                 <div className="list">
                   {retestItems.length === 0 && <div className="item">No retest requests found.</div>}
                   {retestItems.map((item) => (
@@ -422,6 +541,51 @@ export default function StudentPage() {
                       ) : null}
                     </div>
                   ))}
+                </div>
+                <div className="list">
+                  {dueExams.length === 0 && (
+                    <div className="item">No exams are past the due date.</div>
+                  )}
+                  {dueExams.map((exam) => {
+                    const status = retestStatusByExamId.get(String(exam._id))?.status;
+                    const used = retestStatusByExamId.get(String(exam._id))?.used;
+                    return (
+                      <div className="item" key={exam._id}>
+                        <strong>{exam.title}</strong>
+                        {exam.description ? <><br />{exam.description}</> : null}
+                        <br />
+                        Due Date: {new Date(exam.dueDate).toLocaleString()}
+                        <div className="stack">
+                          <textarea
+                            placeholder="Reason for retest (required)"
+                            value={retestReasons[exam._id] || ""}
+                            onChange={(e) =>
+                              setRetestReasons((prev) => ({
+                                ...prev,
+                                [exam._id]: e.target.value
+                              }))
+                            }
+                            required
+                          />
+                        </div>
+                        <div className="material-actions">
+                          {status === "pending" ? (
+                            <button className="btn" type="button" disabled>
+                              Retest Request Pending
+                            </button>
+                          ) : status === "approved" && !used ? (
+                            <button className="btn" type="button" disabled>
+                              Retest Approved
+                            </button>
+                          ) : (
+                            <button className="btn" onClick={() => requestRetest(exam._id)}>
+                              Request Retest
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -459,5 +623,61 @@ export default function StudentPage() {
       </Shell>
       <Toast message={toast.msg} error={toast.error} />
     </>
+  );
+}
+
+function PieChart({ value }) {
+  const percentage = Math.min(100, Math.max(0, Math.round(value * 100)));
+  const dash = `${percentage} ${100 - percentage}`;
+  return (
+    <div className="pie-wrap">
+      <svg className="pie-chart" viewBox="0 0 42 42" role="img" aria-label="Accuracy chart">
+        <circle className="pie-track" cx="21" cy="21" r="15.9155" />
+        <circle
+          className="pie-value"
+          cx="21"
+          cy="21"
+          r="15.9155"
+          strokeDasharray={dash}
+          strokeDashoffset="25"
+        />
+      </svg>
+      <div className="pie-center">{percentage}%</div>
+    </div>
+  );
+}
+
+function LineChart({ data }) {
+  const width = 320;
+  const height = 140;
+  const padding = 18;
+  const usableWidth = width - padding * 2;
+  const usableHeight = height - padding * 2;
+  const step = data.length > 1 ? usableWidth / (data.length - 1) : 0;
+  const points = data
+    .map((item, index) => {
+      const x = padding + index * step;
+      const y = padding + (1 - item.value) * usableHeight;
+      return `${x},${y}`;
+    })
+    .join(" ");
+
+  return (
+    <div className="line-wrap">
+      <svg className="line-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Performance trend chart">
+        <line className="line-axis" x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} />
+        <polyline className="line-path" points={points} />
+        {data.map((item, index) => {
+          const x = padding + index * step;
+          const y = padding + (1 - item.value) * usableHeight;
+          return <circle className="line-point" cx={x} cy={y} r="3.5" key={`${item.label}-${index}`} />;
+        })}
+      </svg>
+      <div className="line-labels">
+        {data.map((item, index) => (
+          <span key={`${item.label}-label-${index}`}>{item.label}</span>
+        ))}
+      </div>
+    </div>
   );
 }
